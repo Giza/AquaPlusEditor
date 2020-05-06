@@ -1,4 +1,4 @@
-﻿using AquaPlusEditor;
+using AquaPlusEditor;
 using System;
 using System.Data;
 using System.Drawing;
@@ -45,16 +45,34 @@ namespace APEGUI {
         }
 
         private void listBox1_SelectedIndexChanged(object sender, EventArgs e) {
-            try {
-                textBox1.Text = listBox1.Items[listBox1.SelectedIndex].ToString();
-                Text = "id: " + listBox1.SelectedIndex;
-            } catch { }
+            StreamReader f = new StreamReader(@"test.txt");
+            string[] a = f.ReadToEnd().Split('\n');
+            var lineCount = File.ReadAllLines(@"test.txt").Length;
+            try {                
+
+                if (lineCount == 0)
+                    textBox1.Text = listBox1.Items[listBox1.SelectedIndex].ToString();
+                else
+                    textBox1.Text = a[listBox1.SelectedIndex].ToString(); 
+                
+                Text = "id: " + listBox1.SelectedIndex;  
+            }
+            catch { }
         }
         private void textBox1_KeyPress(object sender, KeyPressEventArgs e) {
+            var lineCount = File.ReadAllLines(@"test.txt").Length;
             if (e.KeyChar == '\n' || e.KeyChar == '\r') {
                 try {
                     listBox1.Items[listBox1.SelectedIndex] = textBox1.Text;
-                } catch {
+                    listBox1.SelectedIndex++;
+                    if (listBox1.Items[listBox1.SelectedIndex].ToString().IndexOf("\\n") > -1)
+                    {
+                        textBox1.Text = "";
+                    }
+                    if (lineCount == 0) 
+                        File.AppendAllText(@"test_eng.txt", textBox1.Text  + Environment.NewLine);        
+                }
+                catch {
 
                 }
             }
@@ -218,6 +236,107 @@ namespace APEGUI {
             uint[] NOffsets = open.OffPos.ToArray();
             uint[] Misssing = (from x in Offsets where !NOffsets.Contains(x) select x).ToArray();
 
+        }
+
+        private void Open_Script_File_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog fd = new OpenFileDialog();
+            fd.Filter = "All Script Files|*.bin";
+            if (fd.ShowDialog() != DialogResult.OK)
+                return;
+
+            byte[] Script = File.ReadAllBytes(fd.FileName);
+            string[] Strings;
+
+            try
+            {
+                ScriptEditor = new CSTS(Script);
+                Strings = ScriptEditor.Import();
+            }
+            catch
+            {
+                DBMode = true;
+                DBEditor = new DBD(Script);
+                Strings = DBEditor.Import();
+            }
+
+            listBox1.Items.Clear();
+            foreach (string str in Strings)
+                listBox1.Items.Add(str);
+        }
+
+        private void Save_Script_File_Click(object sender, EventArgs e)
+        {
+            SaveFileDialog fd = new SaveFileDialog();
+            fd.Filter = "All Script Files|*.bin";
+            if (fd.ShowDialog() != DialogResult.OK)
+                return;
+
+            string[] Strings = listBox1.Items.Cast<string>().ToArray();
+            byte[] Script = DBMode ? DBEditor.Export(Strings) : ScriptEditor.Export(Strings);
+            File.WriteAllBytes(fd.FileName, Script);
+
+            MessageBox.Show("Script Saved");
+        }
+
+        private void Package_archive_Click(object sender, EventArgs e)
+        {
+            FolderBrowserDialog fbd = new FolderBrowserDialog();
+            fbd.Description = "Folder to pack";
+            if (fbd.ShowDialog() != DialogResult.OK)
+                return;
+
+            SaveFileDialog fd = new SaveFileDialog();
+            fd.Title = "Save as...";
+            fd.Filter = "All *.sdat packgets|*.sdat";
+
+            if (fd.ShowDialog() != DialogResult.OK)
+                return;
+
+            bool SteamVer = MessageBox.Show("Pack in Steam version format?", "APEGUI", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+            bool BigEnddian = !SteamVer && MessageBox.Show("Pack with BigEnddian?\nYes: PS3 Format\nNo: PSV/PS4 Format", "APEGUI", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+
+            if (!fbd.SelectedPath.EndsWith("\\"))
+                fbd.SelectedPath += '\\';
+
+            string[] Files = Directory.GetFiles(fbd.SelectedPath.Replace('\\', Path.AltDirectorySeparatorChar), "*.*");
+
+            Entry[] Entries = (from x in Files
+                               orderby x
+                               select new Entry()
+                               {
+                                   Filename = x.Substring(fbd.SelectedPath.Length),
+                                   Content = new StreamReader(x).BaseStream
+                               }).ToArray();
+
+            Stream Output = new StreamWriter(fd.FileName).BaseStream;
+
+            PAK.Save(Output, Entries, BigEnddian, SteamVer);
+            MessageBox.Show("Packget Saved");
+        }
+
+        private void AllTextAdd_Click(object sender, EventArgs e)
+        {
+            var lineCount = File.ReadAllLines(@"test.txt").Length;
+            StreamReader f = new StreamReader(@"test.txt");
+            string[] a = f.ReadToEnd().Split('\n');
+
+            for (int i = 0; i < 9000; i++) {
+                if (lineCount > 0)
+                    listBox1.Items[i] = a[i].ToString();
+                else
+                {
+                    listBox1.Items[listBox1.SelectedIndex] = textBox1.Text;
+                    listBox1.SelectedIndex++;
+                }
+                if (listBox1.Items[listBox1.SelectedIndex].ToString().IndexOf("\\n") > -1)
+                {
+                    textBox1.Text = "";
+                }
+                if (lineCount == 0)
+                    File.AppendAllText(@"test_eng.txt", textBox1.Text + Environment.NewLine);    
+            }
+            
         }
     }
 }
